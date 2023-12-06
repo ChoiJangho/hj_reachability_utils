@@ -29,7 +29,9 @@ class HjData:
     values: np.ndarray
 
 class ControlAndDisturbanceAffineDynamics(hj.Dynamics):
-    """Abstract base class for representing control- and disturbance-affine dynamics."""
+    """Abstract base class for representing control- and disturbance-affine dynamics.
+        Author: Marius?
+    """
 
     def __call__(self, state, control, disturbance, time):
         """Implements the affine dynamics `dx_dt = f(x, t) + G_u(x, t) @ u + G_d(x, t) @ d`."""
