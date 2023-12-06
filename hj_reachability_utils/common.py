@@ -105,6 +105,12 @@ def get_reach_avoid_postprocessor(target_function, constraint_function):
     """
     return lambda t, v: jnp.maximum(jnp.minimum(v, target_function), constraint_function)
 
+def get_avoid_postprocessor(constraint_function):
+    """
+        constraint_function: negative inside the target set.
+    """
+    return lambda t, v: jnp.maximum(v, constraint_function)
+
 def compute_reach_avoid_value_function(dynamics: hj.Dynamics,
                                      t_max: float,
                                      num_timestep: int,
@@ -128,6 +134,29 @@ def compute_reach_avoid_value_function(dynamics: hj.Dynamics,
         solver_settings, dynamics, grid, times, target_function
     )
 
+    return times, np.asarray(values)
+
+def compute_avoid_value_function(dynamics: hj.Dynamics,
+                                     t_max: float,
+                                     num_timestep: int,
+                                     grid,
+                                     constraint_function,
+                                     accuracy = "high"):
+    assert t_max > 0, "t_max has to be positive."
+    times = np.linspace(0, -t_max, num_timestep)
+    artificial_dissipation_scheme = hj.artificial_dissipation.global_lax_friedrichs
+    avoid_postprocessor = get_avoid_postprocessor(constraint_function)
+
+    # Create the settings object
+    solver_settings = hj.SolverSettings.with_accuracy(
+        accuracy=accuracy,
+        artificial_dissipation_scheme=artificial_dissipation_scheme,
+        value_postprocessor=avoid_postprocessor
+    )
+
+    values = hj.solve(
+        solver_settings, dynamics, grid, times, constraint_function
+    )
     return times, np.asarray(values)
 
 def get_ttr(state,
