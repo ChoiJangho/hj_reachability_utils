@@ -1,22 +1,29 @@
 import abc
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from dataclasses import dataclass
+from enum import Enum
 import numpy as np
 import jax.numpy as jnp
 from scipy.interpolate import RegularGridInterpolator
 import hj_reachability as hj
+
+class GridBoundaryType(Enum):
+    ExtrapolateAwayFromZero = 0
+    Dirichlet = 1
+    Periodic = 2
 
 @dataclass
 class HjGridMetaData:
     domain_lo: np.ndarray
     domain_hi: np.ndarray
     shape: Tuple[int]
+    boundary_types: Tuple[GridBoundaryType]
     dirichlet_value: Optional[float]
 
 @dataclass
 class HjData:
     grid_meta_data: HjGridMetaData
-    target_function: np.ndarray
+    target_function: Optional[np.ndarray]
     constraint_function: Optional[np.ndarray]
     times: np.ndarray
     values: np.ndarray
@@ -65,11 +72,16 @@ def get_constant_dirichlet(constant):
     return lambda x, pad_width: jnp.pad(x, ((pad_width, pad_width)), "constant", constant_values=constant)
 
 def get_hj_grid_from_meta_data(meta_data: HjGridMetaData):
-    if meta_data.dirichlet_value is not None:
-        dirichlet = get_constant_dirichlet(meta_data.dirichlet_value)
-    else:
-        dirichlet = None
-    boundary_conditions = (dirichlet, dirichlet) if dirichlet is not None else None
+    boundary_conditions = []
+    for boundary_type in meta_data.boundary_types:
+        if boundary_type == GridBoundaryType.Dirichlet:
+            dirichlet = get_constant_dirichlet(meta_data.dirichlet_value)
+            boundary_conditions.append(dirichlet)
+        elif boundary_type == GridBoundaryType.ExtrapolateAwayFromZero:
+            boundary_conditions.append(hj.boundary_conditions.extrapolate_away_from_zero)
+        elif boundary_type == GridBoundaryType.Periodic:
+            boundary_conditions.append(hj.boundary_conditions.periodic)
+    boundary_conditions = tuple(boundary_conditions)
     grid = hj.Grid.from_lattice_parameters_and_boundary_conditions(
         domain = hj.sets.Box(lo=meta_data.domain_lo, 
                             hi=meta_data.domain_hi),
@@ -77,6 +89,14 @@ def get_hj_grid_from_meta_data(meta_data: HjGridMetaData):
         boundary_conditions=boundary_conditions
     )
     return grid
+
+def get_projected_grid_meta(original_grid: HjGridMetaData, projection_dims: List[int]):
+    projected_grid = HjGridMetaData(original_grid.domain_lo[projection_dims],
+                                    original_grid.domain_hi[projection_dims],
+                                    tuple(original_grid.shape[dim] for dim in projection_dims),
+                                    tuple(original_grid.boundary_types[dim] for dim in projection_dims),
+                                    original_grid.dirichlet_value)
+    return projected_grid
 
 def get_reach_avoid_postprocessor(target_function, constraint_function):
     """
