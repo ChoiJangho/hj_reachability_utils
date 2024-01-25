@@ -1,4 +1,6 @@
 import abc
+from flax import struct
+
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 from enum import Enum
@@ -6,6 +8,7 @@ import numpy as np
 import jax.numpy as jnp
 from scipy.interpolate import RegularGridInterpolator
 import hj_reachability as hj
+from hj_reachability.sets import Box
 
 class GridBoundaryType(Enum):
     ExtrapolateAwayFromZero = 0
@@ -26,7 +29,17 @@ class HjData:
     target_function: Optional[np.ndarray]
     constraint_function: Optional[np.ndarray]
     times: np.ndarray
-    values: np.ndarray
+    values: np.ndarray    
+
+@struct.dataclass
+class StateVaryingBox(Box):
+    @property
+    def max_magnitudes(self):
+        lo_min = jnp.min(self.bounding_box.lo, axis=np.arange(self.bounding_box.lo.ndim-1))
+        hi_max = jnp.max(self.bounding_box.hi, axis=np.arange(self.bounding_box.hi.ndim-1))
+
+        """Returns the maximum magnitude (per dimension) of points in the set."""
+        return jnp.maximum(jnp.abs(lo_min), jnp.abs(hi_max))    
 
 class ControlAndDisturbanceAffineDynamics(hj.Dynamics):
     """Abstract base class for representing control- and disturbance-affine dynamics.
@@ -35,7 +48,8 @@ class ControlAndDisturbanceAffineDynamics(hj.Dynamics):
 
     def __call__(self, state, control, disturbance, time):
         """Implements the affine dynamics `dx_dt = f(x, t) + G_u(x, t) @ u + G_d(x, t) @ d`."""
-        return (self.open_loop_dynamics(state, time) + self.control_jacobian(state, time) @ control +
+        control_vec = self.control_jacobian(state, time) * control if self.control_jacobian(state, time).ndim == 1 else self.control_jacobian(state, time) @ control
+        return (self.open_loop_dynamics(state, time) + control_vec +
                 self.disturbance_jacobian(state, time) @ disturbance)
 
     @abc.abstractmethod
@@ -65,8 +79,9 @@ class ControlAndDisturbanceAffineDynamics(hj.Dynamics):
         """Computes the max magnitudes of the Hamiltonian partials over the `grad_value_box` in each dimension."""
         del value, grad_value_box  # unused
         # An overestimation; see Eq. (25) from https://www.cs.ubc.ca/~mitchell/ToolboxLS/toolboxLS-1.1.pdf.
+        control_mag = self.control_jacobian(state, time) * self.control_space.max_magnitudes if self.control_jacobian(state, time).ndim == 1 else self.control_jacobian(state, time) @ self.control_space.max_magnitudes
         return (jnp.abs(self.open_loop_dynamics(state, time)) +
-                jnp.abs(self.control_jacobian(state, time)) @ self.control_space.max_magnitudes +
+                control_mag +
                 jnp.abs(self.disturbance_jacobian(state, time)) @ self.disturbance_space.max_magnitudes)
 
 
