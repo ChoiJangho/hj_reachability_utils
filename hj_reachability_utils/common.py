@@ -89,10 +89,11 @@ class ControlAndDisturbanceAffineDynamics(hj.Dynamics):
         """Computes the max magnitudes of the Hamiltonian partials over the `grad_value_box` in each dimension."""
         del value, grad_value_box  # unused
         # An overestimation; see Eq. (25) from https://www.cs.ubc.ca/~mitchell/ToolboxLS/toolboxLS-1.1.pdf.
-        control_mag = self.control_jacobian(state, time) * self.control_space.max_magnitudes if self.control_jacobian(state, time).ndim == 1 else self.control_jacobian(state, time) @ self.control_space.max_magnitudes
-        return (jnp.abs(self.open_loop_dynamics(state, time)) +
-                control_mag +
-                jnp.abs(self.disturbance_jacobian(state, time)) @ self.disturbance_space.max_magnitudes)
+        control_jac_abs = jnp.abs(self.control_jacobian(state, time))
+        control_mag = control_jac_abs * self.control_space.max_magnitudes if control_jac_abs.ndim == 1 \
+            else control_jac_abs @ self.control_space.max_magnitudes
+        dstb_mag = jnp.abs(self.disturbance_jacobian(state, time)) @ self.disturbance_space.max_magnitudes
+        return (jnp.abs(self.open_loop_dynamics(state, time)) + control_mag + dstb_mag)
 
 
 def get_constant_dirichlet(constant):
@@ -229,8 +230,8 @@ def optimal_control_with_time(time, state,
                               values: np.ndarray):
     ttr, ttr_index = get_ttr(state, times, grid, values)
     print(ttr)
-    value = grid.interpolate(values[ttr_index, :, :], state)
-    grad_values = grid.grad_values(values[ttr_index, :, :])
+    value = grid.interpolate(values[ttr_index, ...], state)
+    grad_values = grid.grad_values(values[ttr_index, ...])
     grad_value = grid.interpolate(grad_values, state)
     # print(grad_value)
     u_opt_jnp = dynamics.optimal_control(state, time, grad_value=grad_value)
@@ -247,8 +248,8 @@ def one_step_predictive_control_with_time(time, state,
                                           values: np.ndarray):
     ttr, ttr_index = get_ttr(state, times, grid, values)
     print(ttr)
-    value = grid.interpolate(values[ttr_index, :, :], state)
-    u_opt_jnp = dynamics.one_step_predictive_control(state, time, grid, values[ttr_index, :, :])
+    value = grid.interpolate(values[ttr_index, ...], state)
+    u_opt_jnp = dynamics.one_step_predictive_control(state, time, grid, values[ttr_index, ...])
     extras = {}
     extras['ttr'] = ttr
     extras['value'] = value

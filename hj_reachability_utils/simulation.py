@@ -14,7 +14,6 @@ def simulate(dynamics, t, x, u, dt, exit_event_func=None, verbose=False):
         dx: data point of the vector field. Note that for the second order error,
             the input-output tuple has to be ((0.5(x + x_next), u), dx)
     """
-    # TODO: generalize to time-varying dynamics.
     def dynfun(t_, x_):
         return dynamics(t_, x_, u)
 
