@@ -1,3 +1,4 @@
+import functools
 import abc
 from flax import struct
 
@@ -281,3 +282,19 @@ def migrate_value_to_new_grid(grid_original: hj.Grid, value_original: np.ndarray
             interploation_output_domain = tuple(grid_new.states[..., idim] for idim in range(ndim))
             value_new[i, ...] = interpolate_global(interploation_output_domain)
         return value_new
+    
+def interpolate_on_grid_custom(grid: hj.Grid, values, state):
+    # modification of hj.Grid.interpolate
+    position = (state - grid.domain.lo) / jnp.array(grid.spacings)
+    index_lo = jnp.floor(position).astype(jnp.int32)
+    index_hi = index_lo + 1
+    weight_hi = position - index_lo
+    weight_lo = 1 - weight_hi
+    index_lo, index_hi = tuple(
+        jnp.where(grid._is_periodic_dim, index % np.array(grid.shape), jnp.clip(index, 0, np.array(grid.shape)))
+        for index in (index_lo, index_hi))
+    weight = functools.reduce(lambda x, y: x * y, jnp.ix_(*jnp.stack([weight_lo, weight_hi], -1)))
+    # TODO: Double-check numerical stability here and/or switch to `tuple`s and `itertools.product` for clarity.
+    return jnp.sum(
+        weight[(...,) + (np.newaxis,) * (values.ndim - grid.ndim)] *
+        values[jnp.ix_(*jnp.stack([index_lo, index_hi], -1))], list(range(grid.ndim)))
