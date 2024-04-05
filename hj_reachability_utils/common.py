@@ -10,6 +10,15 @@ import jax.numpy as jnp
 from scipy.interpolate import RegularGridInterpolator
 import hj_reachability as hj
 from hj_reachability.sets import Box
+from typing import Any
+
+Array = Any
+
+class GeneralConstants():
+    RAD2DEG: float = 180 / np.pi
+    DEG2RAD: float = np.pi / 180
+    GRAVITY: float = 9.81
+    SMALLNUMBER: float = 1e-6
 
 class GridBoundaryType(Enum):
     ExtrapolateAwayFromZero = 0
