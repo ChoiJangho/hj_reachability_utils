@@ -39,7 +39,13 @@ class HjData:
     target_function: Optional[np.ndarray]
     constraint_function: Optional[np.ndarray]
     times: np.ndarray
-    values: np.ndarray    
+    values: np.ndarray
+    
+@dataclass
+class TtrData:
+    grid_meta_data: HjGridMetaData
+    values: np.ndarray
+    ttr_max: float
 
 @struct.dataclass
 class StateVaryingBox(Box):
