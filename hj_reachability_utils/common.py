@@ -2,7 +2,7 @@ import functools
 import abc
 from flax import struct
 
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 from dataclasses import dataclass
 from enum import Enum
 import numpy as np
@@ -40,6 +40,7 @@ class HjData:
     constraint_function: Optional[np.ndarray]
     times: np.ndarray
     values: np.ndarray
+    info: Optional[Dict] = None
     
 @dataclass
 class TtrData:
